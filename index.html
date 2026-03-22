@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FaceDrop</title>
+<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #070d1a;
+    color: #fff;
+    font-family: 'Segoe UI', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 32px 20px;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 28px;
+  }
+
+  header h1 {
+    font-size: 2.6rem;
+    font-weight: 900;
+    letter-spacing: -1px;
+    background: linear-gradient(90deg, #60a5fa, #a78bfa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  header p {
+    color: #4a5568;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+
+  .layout {
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  /* Single canvas — video drawn INTO it, filter drawn ON TOP */
+  #canvas {
+    width: 640px;
+    height: 480px;
+    border-radius: 16px;
+    background: #111827;
+    display: block;
+  }
+
+  /* Hidden video — only used as source for canvas.drawImage */
+  #video { display: none; }
+
+  .panel {
+    width: 280px;
+    background: #111827;
+    border-radius: 16px;
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .panel h2 { font-size: 1rem; font-weight: 700; color: #e2e8f0; }
+
+  .drop-zone {
+    border: 2px dashed #2d3748;
+    border-radius: 12px;
+    padding: 24px 12px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: #0f172a;
+  }
+  .drop-zone:hover { border-color: #60a5fa; background: #1e2a3a; }
+  .drop-zone .icon { font-size: 2.2rem; margin-bottom: 8px; }
+  .drop-zone p { color: #4a5568; font-size: 0.82rem; line-height: 1.5; }
+  #fileInput { display: none; }
+
+  #preview {
+    width: 100%;
+    border-radius: 10px;
+    display: none;
+    border: 1px solid #1e293b;
+  }
+
+  #status {
+    font-size: 0.82rem;
+    color: #64748b;
+    min-height: 18px;
+    line-height: 1.4;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+  .badge-blue  { background: #1e3a5f; color: #60a5fa; }
+  .badge-green { background: #052e16; color: #4ade80; }
+  .badge-yellow { background: #2d1f00; color: #fbbf24; }
+  .badge-red   { background: #2d0000; color: #f87171; }
+
+  .tip {
+    font-size: 0.75rem;
+    color: #374151;
+    line-height: 1.5;
+    border-top: 1px solid #1e293b;
+    padding-top: 12px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>FaceDrop</h1>
+  <p>Drop any face onto yours, live.</p>
+</header>
+
+<div class="layout">
+  <!-- Single canvas — video frame drawn here + filter on top -->
+  <canvas id="canvas" width="640" height="480"></canvas>
+
+  <!-- Hidden video source -->
+  <video id="video" autoplay playsinline muted></video>
+
+  <!-- Panel -->
+  <div class="panel">
+    <h2>Upload Filter</h2>
+
+    <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+      <div class="icon">🖼️</div>
+      <p>Click or drag a PNG / JPG<br>of any character or face</p>
+      <input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp">
+    </div>
+
+    <img id="preview" alt="filter preview">
+
+    <div id="status">Loading AI models…</div>
+    <div id="badgeWrap"></div>
+
+    <div class="tip">
+      💡 Best results: use a PNG with transparent background and a clear front-facing face.
+      Works with real faces, anime, and cartoon characters.
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Config ────────────────────────────────────────────────────────────────
+const MODEL_URL = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights';
+const DETECT_OPTS = new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.45 });
+
+// ─── Elements ──────────────────────────────────────────────────────────────
+const video   = document.getElementById('video');
+const canvas  = document.getElementById('canvas');
+const ctx     = canvas.getContext('2d');
+const statusEl = document.getElementById('status');
+const badgeWrap = document.getElementById('badgeWrap');
+const preview  = document.getElementById('preview');
+
+// ─── State ─────────────────────────────────────────────────────────────────
+let filterImg      = null;
+let filterEyeLeft  = null;   // normalised {x,y} inside filterImg
+let filterEyeRight = null;
+let filterReady    = false;
+let isDetecting    = false;
+
+// ─── Helpers ───────────────────────────────────────────────────────────────
+function avg(pts) {
+  return {
+    x: pts.reduce((s, p) => s + p.x, 0) / pts.length,
+    y: pts.reduce((s, p) => s + p.y, 0) / pts.length
+  };
+}
+
+function setStatus(msg) { statusEl.textContent = msg; }
+
+function setBadge(text, cls = 'badge-blue') {
+  badgeWrap.innerHTML = `<span class="badge ${cls}">${text}</span>`;
+}
+
+// ─── 1. Load AI models ─────────────────────────────────────────────────────
+async function init() {
+  try {
+    setStatus('Loading AI models…');
+    await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+    await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+    setStatus('Models ready ✅  —  starting camera…');
+    await startCamera();
+  } catch (e) {
+    setStatus('Error loading models: ' + e.message);
+    setBadge('Model load failed', 'badge-red');
+  }
+}
+
+// ─── 2. Start webcam ───────────────────────────────────────────────────────
+async function startCamera() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { width: 640, height: 480, facingMode: 'user' }
+    });
+    video.srcObject = stream;
+    video.onloadedmetadata = () => {
+      canvas.width  = video.videoWidth;
+      canvas.height = video.videoHeight;
+      setStatus('Camera on ✅  —  upload a filter image →');
+      renderLoop();
+    };
+  } catch (e) {
+    setStatus('Camera error: ' + e.message);
+    setBadge('Camera blocked', 'badge-red');
+  }
+}
+
+// ─── 3. Upload + analyse filter image ─────────────────────────────────────
+async function handleUpload(file) {
+  if (!file) return;
+  setStatus('Analysing filter image…');
+  setBadge('Processing…', 'badge-blue');
+
+  const img = new Image();
+  img.src = URL.createObjectURL(file);
+  await new Promise(r => { img.onload = r; });
+
+  // Show preview
+  preview.src = img.src;
+  preview.style.display = 'block';
+
+  // Draw filter to offscreen canvas so face-api can read pixel data
+  const off = document.createElement('canvas');
+  off.width  = img.naturalWidth;
+  off.height = img.naturalHeight;
+  off.getContext('2d').drawImage(img, 0, 0);
+
+  const det = await faceapi
+    .detectSingleFace(off, DETECT_OPTS)
+    .withFaceLandmarks();
+
+  if (det) {
+    // Real face detected — use actual landmark eye positions
+    const lm = det.landmarks;
+    const le = avg(lm.getLeftEye());
+    const re = avg(lm.getRightEye());
+    filterEyeLeft  = { x: le.x / img.naturalWidth,  y: le.y / img.naturalHeight };
+    filterEyeRight = { x: re.x / img.naturalWidth,  y: re.y / img.naturalHeight };
+    setBadge('Face detected in filter ✅', 'badge-green');
+    setStatus('Filter ready! Look at the camera.');
+  } else {
+    // No face detected (anime / cartoon / full-body) — estimate eye positions
+    // These values work well for most front-facing anime character PNGs
+    filterEyeLeft  = { x: 0.36, y: 0.26 };
+    filterEyeRight = { x: 0.64, y: 0.26 };
+    setBadge('Using estimated positions ⚠️', 'badge-yellow');
+    setStatus('No face found in image — using best-guess alignment.');
+  }
+
+  filterImg   = img;
+  filterReady = true;
+}
+
+// File input
+document.getElementById('fileInput').addEventListener('change', e => {
+  handleUpload(e.target.files[0]);
+});
+
+// Drag & drop
+const dropZone = document.getElementById('dropZone');
+dropZone.addEventListener('dragover', e => {
+  e.preventDefault();
+  dropZone.style.borderColor = '#60a5fa';
+});
+dropZone.addEventListener('dragleave', () => {
+  dropZone.style.borderColor = '';
+});
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.style.borderColor = '';
+  handleUpload(e.dataTransfer.files[0]);
+});
+
+// ─── 4. Render loop ────────────────────────────────────────────────────────
+// Strategy:
+//   • Draw the RAW (non-mirrored) video frame flipped onto the canvas
+//     so the user sees a mirror view — this also means canvas coords
+//     are already in "mirror space" and no separate CSS flip is needed.
+//   • Detect face on the raw video element (coords are in raw space).
+//   • Mirror those coords (x → W - x) to get canvas-space coords.
+//   • Sort the two eyes by canvas-space X so we always have
+//     (eyeA = visually left, eyeB = visually right) — this prevents
+//     the 180° flip / upside-down bug.
+
+function renderLoop() {
+  requestAnimationFrame(renderLoop);
+
+  if (video.readyState !== 4) return;
+
+  // ── Draw mirrored video frame onto canvas ─────────────────────────────
+  ctx.save();
+  ctx.translate(canvas.width, 0);
+  ctx.scale(-1, 1);
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  ctx.restore();
+
+  // ── Trigger face detection (non-blocking) ────────────────────────────
+  if (!filterReady || isDetecting) return;
+
+  isDetecting = true;
+  faceapi
+    .detectSingleFace(video, DETECT_OPTS)
+    .withFaceLandmarks()
+    .then(det => {
+      if (det) drawFilter(det);
+      isDetecting = false;
+    })
+    .catch(() => { isDetecting = false; });
+}
+
+// ─── 5. Draw filter aligned to detected face ───────────────────────────────
+function drawFilter(det) {
+  const W  = canvas.width;
+  const lm = det.landmarks;
+
+  // Raw landmark coords (in video/image space, unmirrored)
+  const rawL = avg(lm.getLeftEye());
+  const rawR = avg(lm.getRightEye());
+
+  // Mirror to canvas space
+  const canvasL = { x: W - rawL.x, y: rawL.y };
+  const canvasR = { x: W - rawR.x, y: rawR.y };
+
+  // Sort by X so eyeA is always the visually-LEFT eye on screen
+  // This prevents upside-down rendering caused by swapped angle direction
+  const eyeA = canvasL.x < canvasR.x ? canvasL : canvasR;
+  const eyeB = canvasL.x < canvasR.x ? canvasR : canvasL;
+
+  // Head tilt angle (from left eye to right eye, left-to-right)
+  const angle = Math.atan2(eyeB.y - eyeA.y, eyeB.x - eyeA.x);
+
+  // Pixel distance between live eyes
+  const liveDist = Math.hypot(eyeB.x - eyeA.x, eyeB.y - eyeA.y);
+
+  // Normalised distance between eyes in the filter image
+  // Sort filter eyes the same way (by X)
+  const fA = filterEyeLeft.x < filterEyeRight.x ? filterEyeLeft : filterEyeRight;
+  const fB = filterEyeLeft.x < filterEyeRight.x ? filterEyeRight : filterEyeLeft;
+  const filtDist = Math.hypot(fB.x - fA.x, fB.y - fA.y);
+
+  // Scale the filter so its inter-eye distance matches the live face
+  const scale = liveDist / (filtDist * filterImg.naturalWidth);
+  const drawW = filterImg.naturalWidth  * scale;
+  const drawH = filterImg.naturalHeight * scale;
+
+  // Midpoint between live eyes (canvas space)
+  const midX = (eyeA.x + eyeB.x) / 2;
+  const midY = (eyeA.y + eyeB.y) / 2;
+
+  // Midpoint between filter eyes (scaled draw space)
+  const fMidX = ((fA.x + fB.x) / 2) * drawW;
+  const fMidY = ((fA.y + fB.y) / 2) * drawH;
+
+  // Draw: move origin to live eye midpoint → rotate → draw so filter eye mid = origin
+  ctx.save();
+  ctx.translate(midX, midY);
+  ctx.rotate(angle);
+  ctx.drawImage(filterImg, -fMidX, -fMidY, drawW, drawH);
+  ctx.restore();
+}
+
+// ─── Start ─────────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
