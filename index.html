@@ -4,381 +4,1001 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FaceDrop</title>
-<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-
-  body {
-    background: #070d1a;
-    color: #fff;
-    font-family: 'Segoe UI', sans-serif;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 32px 20px;
-  }
-
-  header {
-    text-align: center;
-    margin-bottom: 28px;
-  }
-
-  header h1 {
-    font-size: 2.6rem;
-    font-weight: 900;
-    letter-spacing: -1px;
-    background: linear-gradient(90deg, #60a5fa, #a78bfa);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
-
-  header p {
-    color: #4a5568;
-    margin-top: 4px;
-    font-size: 0.95rem;
-  }
-
-  .layout {
-    display: flex;
-    gap: 24px;
-    align-items: flex-start;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-
-  /* Single canvas — video drawn INTO it, filter drawn ON TOP */
-  #canvas {
-    width: 640px;
-    height: 480px;
-    border-radius: 16px;
-    background: #111827;
-    display: block;
-  }
-
-  /* Hidden video — only used as source for canvas.drawImage */
-  #video { display: none; }
-
-  .panel {
-    width: 280px;
-    background: #111827;
-    border-radius: 16px;
-    padding: 22px;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-  }
-
-  .panel h2 { font-size: 1rem; font-weight: 700; color: #e2e8f0; }
-
-  .drop-zone {
-    border: 2px dashed #2d3748;
-    border-radius: 12px;
-    padding: 24px 12px;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.2s;
-    background: #0f172a;
-  }
-  .drop-zone:hover { border-color: #60a5fa; background: #1e2a3a; }
-  .drop-zone .icon { font-size: 2.2rem; margin-bottom: 8px; }
-  .drop-zone p { color: #4a5568; font-size: 0.82rem; line-height: 1.5; }
-  #fileInput { display: none; }
-
-  #preview {
-    width: 100%;
-    border-radius: 10px;
-    display: none;
-    border: 1px solid #1e293b;
-  }
-
-  #status {
-    font-size: 0.82rem;
-    color: #64748b;
-    min-height: 18px;
-    line-height: 1.4;
-  }
-
-  .badge {
-    display: inline-block;
-    padding: 4px 12px;
-    border-radius: 20px;
-    font-size: 0.75rem;
-    font-weight: 600;
-  }
-  .badge-blue  { background: #1e3a5f; color: #60a5fa; }
-  .badge-green { background: #052e16; color: #4ade80; }
-  .badge-yellow { background: #2d1f00; color: #fbbf24; }
-  .badge-red   { background: #2d0000; color: #f87171; }
-
-  .tip {
-    font-size: 0.75rem;
-    color: #374151;
-    line-height: 1.5;
-    border-top: 1px solid #1e293b;
-    padding-top: 12px;
-  }
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  background:#07090f;color:#e2e8f0;
+  font-family:'Segoe UI',sans-serif;
+  min-height:100vh;display:flex;flex-direction:column;
+  align-items:center;padding:24px 16px;gap:20px
+}
+h1{
+  font-size:2.4rem;font-weight:900;letter-spacing:-2px;
+  background:linear-gradient(135deg,#818cf8,#60a5fa,#34d399);
+  background-clip:text;
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent
+}
+.sub{color:#475569;font-size:.88rem}
+.layout{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;justify-content:center}
+#canvas{width:640px;height:480px;border-radius:16px;background:#111;display:block;box-shadow:0 0 0 1px rgba(99,102,241,.2)}
+#video,#warpCanvas,#blendCanvas{display:none}
+.panel{width:270px;display:flex;flex-direction:column;gap:12px}
+.card{background:#0f1420;border-radius:12px;padding:14px;border:1px solid rgba(99,102,241,.15);display:flex;flex-direction:column;gap:9px}
+.card h2{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#6366f1}
+input[type=password]{background:#070d1a;border:1px solid rgba(99,102,241,.3);border-radius:8px;color:#c7d2fe;font-size:.78rem;padding:7px 10px;width:100%;outline:none;font-family:monospace}
+.note{font-size:.68rem;color:#334155;line-height:1.5}.note a{color:#6366f1}
+.aib{display:flex;align-items:center;gap:7px;background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.2);border-radius:8px;padding:6px 10px;font-size:.72rem;color:#818cf8}
+.dot{width:7px;height:7px;border-radius:50%;background:#333;flex-shrink:0}
+.dot.on{background:#6366f1;animation:blink 1s infinite}.dot.ok{background:#34d399}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+.dz{border:2px dashed rgba(99,102,241,.25);border-radius:10px;padding:18px 10px;text-align:center;cursor:pointer;transition:.2s;background:#070d1a}
+.dz:hover{border-color:#6366f1;background:#0c1128}
+.dz .ic{font-size:1.6rem;margin-bottom:4px}
+.dz p{color:#334155;font-size:.76rem;line-height:1.4}
+#fi{display:none}
+#prev{width:100%;border-radius:8px;display:none;border:1px solid rgba(99,102,241,.15);margin-top:2px}
+#log{background:#070d1a;border-radius:8px;padding:8px 10px;font-size:.74rem;color:#64748b;line-height:1.5;min-height:34px;border:1px solid rgba(255,255,255,.04)}
+.bdg{display:inline-flex;align-items:center;padding:3px 9px;border-radius:14px;font-size:.7rem;font-weight:600}
+.g{background:rgba(52,211,153,.1);color:#34d399}.y{background:rgba(251,191,36,.1);color:#fbbf24}
+.b{background:rgba(99,102,241,.12);color:#818cf8}.r{background:rgba(248,113,113,.1);color:#f87171}
+.sr{display:flex;align-items:center;gap:7px;font-size:.72rem;color:#64748b}
+.sr input{flex:1;accent-color:#6366f1}
+.sr span:first-child{min-width:50px}.sr span:last-child{min-width:34px;text-align:right}
+.tips{background:rgba(52,211,153,.04);border:1px solid rgba(52,211,153,.1);border-radius:10px;padding:10px 12px;font-size:.72rem;color:#475569;line-height:1.7}
+.tips strong{color:#34d399}
+.mode-badge{text-align:center;padding:6px;border-radius:8px;font-size:.72rem;font-weight:600;background:rgba(99,102,241,.1);color:#818cf8;border:1px solid rgba(99,102,241,.2)}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:.72rem;color:#94a3b8}
+.select{background:#070d1a;border:1px solid rgba(99,102,241,.3);border-radius:8px;color:#c7d2fe;font-size:.74rem;padding:6px 8px;outline:none;width:122px}
+.chk{accent-color:#34d399;transform:translateY(1px)}
 </style>
 </head>
 <body>
 
-<header>
+<div style="text-align:center">
   <h1>FaceDrop</h1>
-  <p>Drop any face onto yours, live.</p>
-</header>
+  <div class="sub">Delaunay mesh warp — every feature maps to yours</div>
+</div>
 
 <div class="layout">
-  <!-- Single canvas — video frame drawn here + filter on top -->
   <canvas id="canvas" width="640" height="480"></canvas>
-
-  <!-- Hidden video source -->
   <video id="video" autoplay playsinline muted></video>
+  <canvas id="warpCanvas"></canvas>
+  <canvas id="blendCanvas"></canvas>
 
-  <!-- Panel -->
   <div class="panel">
-    <h2>Upload Filter</h2>
 
-    <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
-      <div class="icon">🖼️</div>
-      <p>Click or drag a PNG / JPG<br>of any character or face</p>
-      <input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp">
+    <div class="card">
+      <h2>Claude API Key</h2>
+      <input type="password" id="apiKey" placeholder="sk-ant-api03-…" oninput="saveKey(this.value)">
+      <p class="note">Eye detection for anime/cartoons.<br>
+        <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a></p>
+      <div class="aib"><div class="dot" id="dot"></div><span id="aiLbl">Enter key above</span></div>
     </div>
 
-    <img id="preview" alt="filter preview">
+    <div class="card">
+      <h2>Filter Image</h2>
+      <div class="dz" id="dz" onclick="document.getElementById('fi').click()">
+        <div class="ic">🖼️</div>
+        <p>Click or drag a PNG / JPG<br>face, anime, or character</p>
+        <input type="file" id="fi" accept="image/png,image/jpeg,image/webp">
+      </div>
+      <img id="prev">
+      <div id="log">Loading AI…</div>
+      <div id="bdg"></div>
+      <div class="mode-badge" id="modeBadge">No filter loaded</div>
+    </div>
 
-    <div id="status">Loading AI models…</div>
-    <div id="badgeWrap"></div>
+    <div class="card">
+      <h2>Adjustments</h2>
+      <div class="sr"><span>Feather</span><input type="range" id="sF" min="4" max="60" value="30"><span id="sFl">30</span></div>
+      <div class="sr"><span>Opacity</span><input type="range" id="sO" min="30" max="100" value="95"><span id="sOl">95</span></div>
+      <div class="sr"><span>Smooth</span><input type="range" id="sSm" min="1" max="20" value="8"><span id="sSmL">8</span></div>
+      <div class="sr"><span>Color mix</span><input type="range" id="sC" min="0" max="100" value="40"><span id="sCl">40</span></div>
+      <div class="sr"><span>Fit</span><input type="range" id="sFit" min="90" max="145" value="116"><span id="sFitL">116</span></div>
+      <div class="sr"><span>Y offset</span><input type="range" id="sY" min="-30" max="30" value="-6"><span id="sYL">-6</span></div>
+    </div>
 
-    <div class="tip">
-      💡 Best results: use a PNG with transparent background and a clear front-facing face.
-      Works with real faces, anime, and cartoon characters.
+    <div class="card">
+      <h2>Advanced Mode</h2>
+      <div class="toggle-row">
+        <span>Quality</span>
+        <select id="qualityMode" class="select">
+          <option value="fast">Fast (low latency)</option>
+          <option value="hq">HQ (smoother blend)</option>
+        </select>
+      </div>
+      <label class="toggle-row" for="consentCheck">
+        <span>Consent confirmed</span>
+        <input id="consentCheck" class="chk" type="checkbox">
+      </label>
+      <p class="note">Overlay is disabled until consent is checked. Output is marked as AI-transformed.</p>
+    </div>
+
+    <div class="tips">
+      <strong>Mesh warp mode:</strong> Every landmark of the filter maps to yours — eyes, nose, mouth, jaw all aligned perfectly.<br><br>
+      <strong>Color mix</strong> blends filter skin tone toward yours for seamless integration.<br><br>
+      <strong>Smooth</strong> — higher = more stable, less flicker.
     </div>
   </div>
 </div>
 
-<script>
-// ─── Config ────────────────────────────────────────────────────────────────
-const MODEL_URL = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights';
-const DETECT_OPTS = new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.45 });
+<script type="module">
+import { FaceLandmarker, FilesetResolver }
+  from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs';
 
-// ─── Elements ──────────────────────────────────────────────────────────────
-const video   = document.getElementById('video');
-const canvas  = document.getElementById('canvas');
-const ctx     = canvas.getContext('2d');
-const statusEl = document.getElementById('status');
-const badgeWrap = document.getElementById('badgeWrap');
-const preview  = document.getElementById('preview');
+// ── Landmark indices ──────────────────────────────────────────────────────────
+// Face oval (for clipping mask)
+const OVAL_IDX = [
+  10,338,297,332,284,251,389,356,454,323,361,288,
+  397,365,379,378,400,377,152,148,176,149,150,136,
+  172,58,132,93,234,127,162,21,54,103,67,109
+];
 
-// ─── State ─────────────────────────────────────────────────────────────────
-let filterImg      = null;
-let filterEyeLeft  = null;   // normalised {x,y} inside filterImg
-let filterEyeRight = null;
-let filterReady    = false;
-let isDetecting    = false;
+// Mesh landmarks for warping (comprehensive coverage)
+const MESH_IDX = [
+  // Oval boundary
+  10,338,297,332,284,251,389,356,454,323,361,288,
+  397,365,379,378,400,377,152,148,176,149,150,136,
+  172,58,132,93,234,127,162,21,54,103,67,109,
+  // Eyes
+  33,133,160,144,159,145,362,263,387,373,386,374,
+  // Irises
+  468,473,
+  // Eyebrows
+  70,107,55,65,336,300,285,295,
+  // Nose
+  1,4,5,6,94,195,197,
+  // Mouth outer
+  61,291,0,17,39,269,405,181,
+  // Mouth inner
+  13,14,78,308,82,312,87,317,
+  // Cheeks
+  116,123,147,213,192,214,430,416,435,411,376
+];
 
-// ─── Helpers ───────────────────────────────────────────────────────────────
-function avg(pts) {
+// ── Bowyer-Watson Delaunay triangulation ──────────────────────────────────────
+function delaunay(pts) {
+  const n = pts.length;
+  const xs=pts.map(p=>p.x), ys=pts.map(p=>p.y);
+  const minX=Math.min(...xs),maxX=Math.max(...xs);
+  const minY=Math.min(...ys),maxY=Math.max(...ys);
+  const dm=Math.max(maxX-minX,maxY-minY)*10;
+  const mx=(minX+maxX)/2,my=(minY+maxY)/2;
+  const aug=[...pts,{x:mx-dm,y:my-dm},{x:mx,y:my+dm},{x:mx+dm,y:my-dm}];
+  let tris=[[n,n+1,n+2]];
+
+  for(let i=0;i<n;i++){
+    const p=aug[i];
+    const bad=[],good=[];
+    for(const t of tris){
+      const a=aug[t[0]],b=aug[t[1]],c=aug[t[2]];
+      const ax=a.x-p.x,ay=a.y-p.y;
+      const bx=b.x-p.x,by=b.y-p.y;
+      const cx=c.x-p.x,cy=c.y-p.y;
+      const det=ax*(by*(cx*cx+cy*cy)-cy*(bx*bx+by*by))
+               -ay*(bx*(cx*cx+cy*cy)-cx*(bx*bx+by*by))
+               +(ax*ax+ay*ay)*(bx*cy-by*cx);
+      (det>0?bad:good).push(t);
+    }
+    const boundary=[];
+    for(const t of bad)
+      for(const e of [[t[0],t[1]],[t[1],t[2]],[t[2],t[0]]])
+        if(!bad.some(o=>o!==t&&o.includes(e[0])&&o.includes(e[1]))) boundary.push(e);
+    tris=good;
+    for(const e of boundary) tris.push([e[0],e[1],i]);
+  }
+  return tris.filter(t=>t[0]<n&&t[1]<n&&t[2]<n);
+}
+
+// ── Affine matrix: maps src triangle pixels → dst triangle ────────────────────
+function affine(src,dst){
+  const [s0,s1,s2]=src,[d0,d1,d2]=dst;
+  const D=s0.x*(s1.y-s2.y)+s1.x*(s2.y-s0.y)+s2.x*(s0.y-s1.y);
+  if(Math.abs(D)<0.5) return null;
+  const a=(d0.x*(s1.y-s2.y)+d1.x*(s2.y-s0.y)+d2.x*(s0.y-s1.y))/D;
+  const c=(d0.x*(s2.x-s1.x)+d1.x*(s0.x-s2.x)+d2.x*(s1.x-s0.x))/D;
+  const e=(d0.x*(s1.x*s2.y-s2.x*s1.y)+d1.x*(s2.x*s0.y-s0.x*s2.y)+d2.x*(s0.x*s1.y-s1.x*s0.y))/D;
+  const b=(d0.y*(s1.y-s2.y)+d1.y*(s2.y-s0.y)+d2.y*(s0.y-s1.y))/D;
+  const d=(d0.y*(s2.x-s1.x)+d1.y*(s0.x-s2.x)+d2.y*(s1.x-s0.x))/D;
+  const f=(d0.y*(s1.x*s2.y-s2.x*s1.y)+d1.y*(s2.x*s0.y-s0.x*s2.y)+d2.y*(s0.x*s1.y-s1.x*s0.y))/D;
+  return [a,b,c,d,e,f];
+}
+
+// Expand triangle slightly from centroid (closes triangle seams)
+function expand(pts,px=1.2){
+  const cx=(pts[0].x+pts[1].x+pts[2].x)/3;
+  const cy=(pts[0].y+pts[1].y+pts[2].y)/3;
+  return pts.map(p=>{
+    const dx=p.x-cx,dy=p.y-cy,l=Math.max(.001,Math.hypot(dx,dy));
+    return{x:p.x+(dx/l)*px,y:p.y+(dy/l)*px};
+  });
+}
+
+// ── DOM ───────────────────────────────────────────────────────────────────────
+const canvas      = document.getElementById('canvas');
+const ctx         = canvas.getContext('2d');
+const video       = document.getElementById('video');
+const warpCanvas  = document.getElementById('warpCanvas');
+const warpCtx     = warpCanvas.getContext('2d');
+const blendCanvas = document.getElementById('blendCanvas');
+const blendCtx    = blendCanvas.getContext('2d');
+const logEl       = document.getElementById('log');
+const bdgEl       = document.getElementById('bdg');
+const prevEl      = document.getElementById('prev');
+const dotEl       = document.getElementById('dot');
+const aiLbl       = document.getElementById('aiLbl');
+const modeBadge   = document.getElementById('modeBadge');
+const qModeSel    = document.getElementById('qualityMode');
+const consentEl   = document.getElementById('consentCheck');
+
+const sF  = document.getElementById('sF');
+const sO  = document.getElementById('sO');
+const sSm = document.getElementById('sSm');
+const sC  = document.getElementById('sC');
+const sFit= document.getElementById('sFit');
+const sY  = document.getElementById('sY');
+sF.oninput  = ()=>document.getElementById('sFl').textContent=sF.value;
+sO.oninput  = ()=>document.getElementById('sOl').textContent=sO.value;
+sSm.oninput = ()=>document.getElementById('sSmL').textContent=sSm.value;
+sC.oninput  = ()=>document.getElementById('sCl').textContent=sC.value;
+sFit.oninput= ()=>document.getElementById('sFitL').textContent=sFit.value;
+sY.oninput  = ()=>document.getElementById('sYL').textContent=sY.value;
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let videoLM    = null;   // VIDEO mode face landmarker
+let imageLM    = null;   // IMAGE mode detector for uploaded filters
+let lastT      = -1;
+let fImg       = null;
+let fReady     = false;
+let useWarp    = false;
+let isAnalyzingFilter = false;
+let visionRef  = null;
+let videoDelegate = 'GPU';
+let noFaceFrames = 0;
+let detectErrors = 0;
+let blankWarpFrames = 0;
+let smoothFrameId = 0;
+const EMA_FRAME = {};
+let filterFaceNorm = {cx:0.5,cy:0.5,w:0.62,h:0.78};
+let warpWeakFrames = 0;
+let qualityMode = localStorage.getItem('fd_quality') || 'hq';
+// Default to enabled unless user explicitly turned it off.
+let consentAccepted = localStorage.getItem('fd_consent') !== '0';
+const historyCanvas=document.createElement('canvas');
+const historyCtx=historyCanvas.getContext('2d');
+let prevNose = null;
+
+// Warp mode
+let srcPts     = null;   // pixel coords of MESH_IDX in filter image
+let triList    = null;   // Delaunay triangles
+
+// Fallback mode
+let fEyeL      = {x:.33,y:.38};
+let fEyeR      = {x:.67,y:.38};
+
+// EMA-smoothed landmark positions {idx: {x,y}}
+const EMA      = {};
+
+// Skin tone sample (from user's face)
+let skinR=180,skinG=140,skinB=120;
+
+function imgW(img){ return img?.naturalWidth || img?.width || 1; }
+function imgH(img){ return img?.naturalHeight || img?.height || 1; }
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const L=t=>{logEl.textContent=t;};
+const B=(t,c)=>{bdgEl.innerHTML=`<span class="bdg ${c}">${t}</span>`;};
+const tI=(lm,W,H)=>({x:lm.x*W,      y:lm.y*H});   // image coords (no mirror)
+const tC=(lm,W,H)=>({x:(1-lm.x)*W,  y:lm.y*H});   // canvas coords (mirrored)
+
+function saveKey(v){localStorage.setItem('fd_k',v.trim());refreshAI();}
+function getKey(){return localStorage.getItem('fd_k')||'';}
+function refreshAI(){
+  const ok=getKey().startsWith('sk-ant');
+  dotEl.className='dot'+(ok?' on':'');
+  aiLbl.textContent=ok?'Claude Vision ready':'Enter key above';
+}
+window.saveKey=saveKey;
+const sk=getKey(); if(sk) document.getElementById('apiKey').value=sk;
+refreshAI();
+
+qModeSel.value=qualityMode;
+consentEl.checked=consentAccepted;
+qModeSel.addEventListener('change',()=>{
+  qualityMode=qModeSel.value;
+  localStorage.setItem('fd_quality',qualityMode);
+  B(qualityMode==='hq'?'HQ mode active':'Fast mode active','b');
+});
+consentEl.addEventListener('change',()=>{
+  consentAccepted=consentEl.checked;
+  localStorage.setItem('fd_consent',consentAccepted?'1':'0');
+  if(consentAccepted){
+    L('Consent confirmed. Face transform enabled.');
+  }else{
+    L('Transform paused. Re-enable Consent confirmed to resume.');
+  }
+});
+
+// EMA smoothing with per-frame dedupe and outlier clamping.
+function ema(idx, raw){
+  if(EMA_FRAME[idx]===smoothFrameId && EMA[idx]) return EMA[idx];
+  const smoothBase=Math.max(1,parseInt(sSm.value));
+  const smooth=qualityMode==='hq' ? smoothBase*1.5 : smoothBase;
+  const alpha=1/smooth;
+  if(!EMA[idx]){
+    EMA[idx]={x:raw.x,y:raw.y};
+  } else {
+    let sx=alpha*(raw.x-EMA[idx].x);
+    let sy=alpha*(raw.y-EMA[idx].y);
+    const sDist=Math.hypot(sx,sy);
+    const maxStep=Math.max(5,32/smooth);
+    if(sDist>maxStep){
+      const k=maxStep/sDist;
+      sx*=k; sy*=k;
+    }
+    EMA[idx].x+=sx;
+    EMA[idx].y+=sy;
+  }
+  EMA_FRAME[idx]=smoothFrameId;
+  return EMA[idx];
+}
+
+function computeNormBox(points){
+  const xs=points.map(p=>p.x), ys=points.map(p=>p.y);
+  const minX=Math.min(...xs), maxX=Math.max(...xs);
+  const minY=Math.min(...ys), maxY=Math.max(...ys);
+  const w=Math.max(0.05,maxX-minX), h=Math.max(0.05,maxY-minY);
+  return {cx:(minX+maxX)/2,cy:(minY+maxY)/2,w,h};
+}
+
+function inferFaceNormFromAlpha(imgEl){
+  const W=imgW(imgEl),H=imgH(imgEl);
+  const c=document.createElement('canvas');
+  c.width=W; c.height=H;
+  const cctx=c.getContext('2d');
+  cctx.drawImage(imgEl,0,0,W,H);
+  const data=cctx.getImageData(0,0,W,H).data;
+  let minX=W,minY=H,maxX=-1,maxY=-1;
+  for(let y=0;y<H;y++){
+    for(let x=0;x<W;x++){
+      const a=data[(y*W+x)*4+3];
+      if(a<12) continue;
+      if(x<minX) minX=x;
+      if(y<minY) minY=y;
+      if(x>maxX) maxX=x;
+      if(y>maxY) maxY=y;
+    }
+  }
+  if(maxX<0 || maxY<0) return {cx:0.5,cy:0.5,w:0.62,h:0.78};
   return {
-    x: pts.reduce((s, p) => s + p.x, 0) / pts.length,
-    y: pts.reduce((s, p) => s + p.y, 0) / pts.length
+    cx:((minX+maxX)/2)/W,
+    cy:((minY+maxY)/2)/H,
+    w:Math.max(0.05,(maxX-minX)/W),
+    h:Math.max(0.05,(maxY-minY)/H)
   };
 }
 
-function setStatus(msg) { statusEl.textContent = msg; }
+// ── 1. Boot sequence: IMAGE landmarker first, then VIDEO ──────────────────────
+// CRITICAL: We must detect filter image landmarks BEFORE starting video mode.
+// Having two concurrent FaceLandmarker instances crashes silently.
+// Solution: detect filter sequentially, then create video landmarker.
 
-function setBadge(text, cls = 'badge-blue') {
-  badgeWrap.innerHTML = `<span class="badge ${cls}">${text}</span>`;
-}
+async function boot(){
+  L('Loading MediaPipe…');
+  try{
+    const vision=await FilesetResolver.forVisionTasks(
+      'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
+    );
+    visionRef=vision;
 
-// ─── 1. Load AI models ─────────────────────────────────────────────────────
-async function init() {
-  try {
-    setStatus('Loading AI models…');
-    await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-    await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
-    setStatus('Models ready ✅  —  starting camera…');
-    await startCamera();
-  } catch (e) {
-    setStatus('Error loading models: ' + e.message);
-    setBadge('Model load failed', 'badge-red');
-  }
-}
+    // Create VIDEO mode landmarker for live tracking
+    videoLM=await createVideoLM('GPU');
+    videoDelegate='GPU';
 
-// ─── 2. Start webcam ───────────────────────────────────────────────────────
-async function startCamera() {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { width: 640, height: 480, facingMode: 'user' }
+    // Use CPU delegate for uploaded image analysis to avoid GPU contention.
+    imageLM=await FaceLandmarker.createFromOptions(vision,{
+      baseOptions:{
+        modelAssetPath:'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+        delegate:'CPU'
+      },
+      runningMode:'IMAGE',numFaces:1,outputFaceBlendshapes:false
     });
-    video.srcObject = stream;
-    video.onloadedmetadata = () => {
-      canvas.width  = video.videoWidth;
-      canvas.height = video.videoHeight;
-      setStatus('Camera on ✅  —  upload a filter image →');
+
+    L('AI ready ✅  Starting camera…');
+    await startCam();
+  }catch(e){L('Error: '+e.message);B('Failed','r');}
+}
+
+async function createVideoLM(delegate='GPU'){
+  if(!visionRef) throw new Error('Vision runtime not initialized');
+  return FaceLandmarker.createFromOptions(visionRef,{
+    baseOptions:{
+      modelAssetPath:'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+      delegate
+    },
+    runningMode:'VIDEO',numFaces:1,outputFaceBlendshapes:false
+  });
+}
+
+async function switchVideoDelegate(next){
+  if(videoDelegate===next) return;
+  try{
+    L(`Reinitializing tracker (${next})…`);
+    const nextLM=await createVideoLM(next);
+    if(videoLM?.close) videoLM.close();
+    videoLM=nextLM;
+    videoDelegate=next;
+    noFaceFrames=0;
+    detectErrors=0;
+    B(`Tracker ${next} ✅`,'g');
+  }catch(e){
+    L('Tracker switch failed: '+e.message);
+    B('Tracker error','r');
+  }
+}
+
+// ── 2. Camera ─────────────────────────────────────────────────────────────────
+async function startCam(){
+  try{
+    const s=await navigator.mediaDevices.getUserMedia({
+      video:{width:640,height:480,facingMode:'user'}
+    });
+    video.srcObject=s; video.play();
+    video.addEventListener('playing',()=>{
+      const W=video.videoWidth,H=video.videoHeight;
+      canvas.width=warpCanvas.width=blendCanvas.width=W;
+      canvas.height=warpCanvas.height=blendCanvas.height=H;
+      historyCanvas.width=W; historyCanvas.height=H;
+      historyCtx.clearRect(0,0,W,H);
+      L('Camera on ✅  Upload a filter image →');
       renderLoop();
-    };
-  } catch (e) {
-    setStatus('Camera error: ' + e.message);
-    setBadge('Camera blocked', 'badge-red');
-  }
+    });
+  }catch(e){L('Camera: '+e.message);B('Blocked','r');}
 }
 
-// ─── 3. Upload + analyse filter image ─────────────────────────────────────
-async function handleUpload(file) {
-  if (!file) return;
-  setStatus('Analysing filter image…');
-  setBadge('Processing…', 'badge-blue');
+// ── 3. Detect landmarks in filter image ───────────────────────────────────────
+// Creates a SEPARATE temporary IMAGE mode landmarker, uses it once, destroys it.
+async function detectFilterFace(imgEl){
+  try{
+    if(!imageLM) return false;
+    L('Detecting face landmarks in filter…');
+    const tmp=document.createElement('canvas');
+    tmp.width=imgW(imgEl); tmp.height=imgH(imgEl);
+    tmp.getContext('2d').drawImage(imgEl,0,0);
 
-  const img = new Image();
-  img.src = URL.createObjectURL(file);
-  await new Promise(r => { img.onload = r; });
+    const result=imageLM.detect(tmp);
 
-  // Show preview
-  preview.src = img.src;
-  preview.style.display = 'block';
+    if(result?.faceLandmarks?.length>0){
+      const lms=result.faceLandmarks[0];
+      const W=imgW(imgEl),H=imgH(imgEl);
 
-  // Draw filter to offscreen canvas so face-api can read pixel data
-  const off = document.createElement('canvas');
-  off.width  = img.naturalWidth;
-  off.height = img.naturalHeight;
-  off.getContext('2d').drawImage(img, 0, 0);
+      // Remove border-connected background/checker artifacts while preserving face detail.
+      const tex=preprocessFilterTexture(imgEl,W,H);
+      fImg=tex;
 
-  const det = await faceapi
-    .detectSingleFace(off, DETECT_OPTS)
-    .withFaceLandmarks();
+      // Face bounds in filter image for stable fallback sizing/alignment.
+      const ovalNorm=OVAL_IDX.map(i=>({x:lms[i].x,y:lms[i].y}));
+      filterFaceNorm=computeNormBox(ovalNorm);
 
-  if (det) {
-    // Real face detected — use actual landmark eye positions
-    const lm = det.landmarks;
-    const le = avg(lm.getLeftEye());
-    const re = avg(lm.getRightEye());
-    filterEyeLeft  = { x: le.x / img.naturalWidth,  y: le.y / img.naturalHeight };
-    filterEyeRight = { x: re.x / img.naturalWidth,  y: re.y / img.naturalHeight };
-    setBadge('Face detected in filter ✅', 'badge-green');
-    setStatus('Filter ready! Look at the camera.');
-  } else {
-    // No face detected (anime / cartoon / full-body) — estimate eye positions
-    // These values work well for most front-facing anime character PNGs
-    filterEyeLeft  = { x: 0.36, y: 0.26 };
-    filterEyeRight = { x: 0.64, y: 0.26 };
-    setBadge('Using estimated positions ⚠️', 'badge-yellow');
-    setStatus('No face found in image — using best-guess alignment.');
-  }
-
-  filterImg   = img;
-  filterReady = true;
+      // Extract pixel coords for each MESH_IDX landmark
+      srcPts=MESH_IDX.map(idx=>tI(lms[idx],W,H));
+      triList=delaunay(srcPts);
+      if(!triList || triList.length<40){
+        // Weak triangulation means poor warping quality; force fallback mode.
+        return false;
+      }
+      // Also store iris positions as fallback eye coords
+      fEyeL={x:lms[468].x,y:lms[468].y};
+      fEyeR={x:lms[473].x,y:lms[473].y};
+      if(fEyeL.x>fEyeR.x){const t=fEyeL;fEyeL=fEyeR;fEyeR=t;}
+      return true;
+    }
+  }catch(e){console.warn('Filter landmark error:',e);}
+  return false;
 }
 
-// File input
-document.getElementById('fileInput').addEventListener('change', e => {
-  handleUpload(e.target.files[0]);
+function preprocessFilterTexture(imgEl,W,H){
+  const tex=document.createElement('canvas');
+  tex.width=W; tex.height=H;
+  const tctx=tex.getContext('2d');
+  tctx.clearRect(0,0,W,H);
+  tctx.drawImage(imgEl,0,0,W,H);
+
+  const imgData=tctx.getImageData(0,0,W,H);
+  const d=imgData.data;
+
+  const border=[];
+  const pushIfOpaque=(x,y)=>{
+    const i=(y*W+x)*4;
+    const a=d[i+3];
+    if(a<8) return;
+    border.push([d[i],d[i+1],d[i+2]]);
+  };
+  for(let x=0;x<W;x++){ pushIfOpaque(x,0); pushIfOpaque(x,H-1); }
+  for(let y=1;y<H-1;y++){ pushIfOpaque(0,y); pushIfOpaque(W-1,y); }
+
+  if(border.length<10) return tex;
+
+  let mr=0,mg=0,mb=0;
+  for(const [r,g,b] of border){ mr+=r; mg+=g; mb+=b; }
+  mr/=border.length; mg/=border.length; mb/=border.length;
+
+  const isBg=(r,g,b,a)=>{
+    if(a<10) return true;
+    const dist=Math.hypot(r-mr,g-mg,b-mb);
+    const max=Math.max(r,g,b), min=Math.min(r,g,b);
+    const sat=max-min;
+    // Border-like or flat checker tones are treated as removable background.
+    return dist<62 || (max>180 && sat<24);
+  };
+
+  const mask=new Uint8Array(W*H);
+  const q=new Int32Array(W*H);
+  let qh=0,qt=0;
+  const seed=(x,y)=>{
+    const p=y*W+x;
+    if(mask[p]) return;
+    const i=p*4;
+    if(!isBg(d[i],d[i+1],d[i+2],d[i+3])) return;
+    mask[p]=1; q[qt++]=p;
+  };
+  for(let x=0;x<W;x++){ seed(x,0); seed(x,H-1); }
+  for(let y=1;y<H-1;y++){ seed(0,y); seed(W-1,y); }
+
+  while(qh<qt){
+    const p=q[qh++];
+    const x=p%W,y=(p/W)|0;
+    if(x>0) seed(x-1,y);
+    if(x<W-1) seed(x+1,y);
+    if(y>0) seed(x,y-1);
+    if(y<H-1) seed(x,y+1);
+  }
+
+  let opaqueCount=0;
+  for(let p=0;p<W*H;p++){
+    const i=p*4;
+    if(mask[p]) d[i+3]=0;
+    if(d[i+3]>12) opaqueCount++;
+  }
+
+  // Edge soften after matte cut to avoid harsh sticker borders.
+  if(opaqueCount>W*H*0.02){
+    for(let y=1;y<H-1;y++){
+      for(let x=1;x<W-1;x++){
+        const p=y*W+x;
+        const i=p*4;
+        const a=d[i+3];
+        if(a===0) continue;
+        const n0=d[(p-1)*4+3], n1=d[(p+1)*4+3], n2=d[(p-W)*4+3], n3=d[(p+W)*4+3];
+        if(n0===0||n1===0||n2===0||n3===0) d[i+3]=Math.min(a,190);
+      }
+    }
+  }
+
+  tctx.putImageData(imgData,0,0);
+
+  return tex;
+}
+
+// ── 4. Claude Vision fallback ─────────────────────────────────────────────────
+async function claudeEyes(imgEl,mime){
+  const key=getKey(); if(!key.startsWith('sk-ant')) return false;
+  dotEl.className='dot on'; aiLbl.textContent='Analyzing…';
+  try{
+    const tmp=document.createElement('canvas');
+    tmp.width=imgW(imgEl); tmp.height=imgH(imgEl);
+    tmp.getContext('2d').drawImage(imgEl,0,0);
+    const b64=tmp.toDataURL(mime).split(',')[1];
+    const res=await fetch('/claude',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        apiKey:key,model:'claude-opus-4-5',max_tokens:120,
+        system:'Find both eye pupil centers. Return ONLY JSON: {"lx":INT,"ly":INT,"rx":INT,"ry":INT,"w":INT,"h":INT}',
+        messages:[{role:'user',content:[
+          {type:'image',source:{type:'base64',media_type:mime,data:b64}},
+          {type:'text',text:'Eye pixel coords as JSON.'}
+        ]}]
+      })
+    });
+    const data=await res.json(); if(!res.ok) throw new Error(data.error?.message);
+    const p=JSON.parse(data.content[0].text.trim());
+    if(p.lx==null) return false;
+    const W=p.w||imgW(imgEl),H=p.h||imgH(imgEl);
+    fEyeL={x:Math.min(p.lx,p.rx)/W,y:p.ly/H};
+    fEyeR={x:Math.max(p.lx,p.rx)/W,y:p.ry/H};
+    dotEl.className='dot ok'; aiLbl.textContent='Eyes found ✅';
+    return true;
+  }catch(e){dotEl.className='dot';aiLbl.textContent='Claude: '+e.message;return false;}
+}
+
+// ── 5. Upload handler ─────────────────────────────────────────────────────────
+document.getElementById('fi').addEventListener('change',async e=>{
+  const file=e.target.files[0]; if(!file) return;
+  fReady=false; B('Loading…','b'); L('Reading image…');
+
+  const img=new Image(); img.src=URL.createObjectURL(file);
+  await new Promise(r=>img.onload=r);
+  prevEl.src=img.src; prevEl.style.display='block';
+  isAnalyzingFilter=true;
+
+  try{
+    // Reset EMA for new filter
+    Object.keys(EMA).forEach(k=>delete EMA[k]);
+    Object.keys(EMA_FRAME).forEach(k=>delete EMA_FRAME[k]);
+    prevNose=null;
+
+    // Try MediaPipe face detection on filter image
+    const mpOk=await detectFilterFace(img);
+    if(mpOk){
+      useWarp=true; fReady=true;
+      B(`Mesh warp ✅ — ${triList.length} triangles`,'g');
+      L('Perfect face sync! Every feature mapped landmark-to-landmark.');
+      modeBadge.textContent='🔺 Delaunay mesh warp active';
+      modeBadge.style.color='#34d399';
+      return;
+    }
+
+    // Try Claude Vision
+    L('No face in filter — trying Claude Vision…');
+    const cvOk=await claudeEyes(img,file.type||'image/png');
+    if(cvOk){
+      fImg=preprocessFilterTexture(img,imgW(img),imgH(img)); useWarp=false; fReady=true;
+      filterFaceNorm=inferFaceNormFromAlpha(fImg);
+      B('Claude eye-align ✅','g');
+      L('Eye-aligned mode. Use sliders to fine-tune.');
+      modeBadge.textContent='👁 Eye-alignment mode';
+      modeBadge.style.color='#fbbf24';
+      return;
+    }
+
+    // Smart defaults
+    const asp=imgW(img)/imgH(img);
+    fEyeL={x:.33,y:asp>0.85?.40:.22};
+    fEyeR={x:.67,y:asp>0.85?.40:.22};
+    fImg=preprocessFilterTexture(img,imgW(img),imgH(img)); useWarp=false; fReady=true;
+    filterFaceNorm=inferFaceNormFromAlpha(fImg);
+    B('Estimated ⚠️','y');
+    L('Estimated positions. Adjust sliders to fit.');
+    modeBadge.textContent='⚠️ Estimated mode';
+    modeBadge.style.color='#fbbf24';
+  }finally{
+    isAnalyzingFilter=false;
+  }
 });
 
-// Drag & drop
-const dropZone = document.getElementById('dropZone');
-dropZone.addEventListener('dragover', e => {
-  e.preventDefault();
-  dropZone.style.borderColor = '#60a5fa';
-});
-dropZone.addEventListener('dragleave', () => {
-  dropZone.style.borderColor = '';
-});
-dropZone.addEventListener('drop', e => {
-  e.preventDefault();
-  dropZone.style.borderColor = '';
-  handleUpload(e.dataTransfer.files[0]);
+const dzEl=document.getElementById('dz');
+dzEl.addEventListener('dragover',e=>{e.preventDefault();dzEl.style.borderColor='#6366f1';});
+dzEl.addEventListener('dragleave',()=>{dzEl.style.borderColor='';});
+dzEl.addEventListener('drop',e=>{
+  e.preventDefault();dzEl.style.borderColor='';
+  const f=e.dataTransfer.files[0]; if(!f) return;
+  const dt=new DataTransfer(); dt.items.add(f);
+  document.getElementById('fi').files=dt.files;
+  document.getElementById('fi').dispatchEvent(new Event('change'));
 });
 
-// ─── 4. Render loop ────────────────────────────────────────────────────────
-// Strategy:
-//   • Draw the RAW (non-mirrored) video frame flipped onto the canvas
-//     so the user sees a mirror view — this also means canvas coords
-//     are already in "mirror space" and no separate CSS flip is needed.
-//   • Detect face on the raw video element (coords are in raw space).
-//   • Mirror those coords (x → W - x) to get canvas-space coords.
-//   • Sort the two eyes by canvas-space X so we always have
-//     (eyeA = visually left, eyeB = visually right) — this prevents
-//     the 180° flip / upside-down bug.
+// ── 6. Sample user skin tone from live video ──────────────────────────────────
+function sampleSkin(landmarks,W,H){
+  // Sample from forehead (lm 10) — reliable skin area
+  const fh=EMA[10]||{x:W/2,y:H*.2};
+  try{
+    // Get pixel from the already-drawn video on canvas
+    const px=ctx.getImageData(Math.round(fh.x),Math.round(fh.y+15),1,1).data;
+    if(px[3]>0){
+      // EMA blend skin sample
+      skinR=skinR*.92+px[0]*.08;
+      skinG=skinG*.92+px[1]*.08;
+      skinB=skinB*.92+px[2]*.08;
+    }
+  }catch(e){}
+}
 
-function renderLoop() {
+// ── 7. WARP MODE: Delaunay triangle-by-triangle warp ─────────────────────────
+function drawWarpMode(liveLMs,W,H){
+  if(!triList || triList.length===0 || !srcPts){
+    drawFallbackMode(liveLMs,W,H);
+    return 0;
+  }
+  warpCtx.clearRect(0,0,W,H);
+  let drawCount=0;
+
+  // Destination points: smoothed canvas-space coords for each MESH_IDX
+  const dstPts=MESH_IDX.map(idx=>{
+    const raw=tC(liveLMs[idx],W,H);
+    return ema(idx,raw);
+  });
+
+  // Draw each triangle with its affine-warped filter texture
+  for(const [a,b,c] of triList){
+    const S=expand([srcPts[a],srcPts[b],srcPts[c]],1.2);
+    const D=expand([dstPts[a],dstPts[b],dstPts[c]],1.2);
+    const M=affine(S,D);
+    if(!M) continue;
+
+    warpCtx.save();
+    warpCtx.beginPath();
+    warpCtx.moveTo(D[0].x,D[0].y);
+    warpCtx.lineTo(D[1].x,D[1].y);
+    warpCtx.lineTo(D[2].x,D[2].y);
+    warpCtx.closePath();
+    warpCtx.clip();
+    warpCtx.setTransform(M[0],M[1],M[2],M[3],M[4],M[5]);
+    warpCtx.drawImage(fImg,0,0);
+    warpCtx.restore();
+    drawCount++;
+  }
+  return drawCount;
+}
+
+// ── 8. FALLBACK MODE: eye-aligned scale+rotate ────────────────────────────────
+function drawFallbackMode(liveLMs,W,H){
+  warpCtx.clearRect(0,0,W,H);
+  const li=ema(468,tC(liveLMs[468],W,H));
+  const ri=ema(473,tC(liveLMs[473],W,H));
+  const eL=li.x<ri.x?li:ri,eR=li.x<ri.x?ri:li;
+  const angle=Math.atan2(eR.y-eL.y,eR.x-eL.x);
+
+  const liveOval=OVAL_IDX.map(i=>ema(i,tC(liveLMs[i],W,H)));
+  const lxs=liveOval.map(p=>p.x), lys=liveOval.map(p=>p.y);
+  const liveMinX=Math.min(...lxs), liveMaxX=Math.max(...lxs);
+  const liveMinY=Math.min(...lys), liveMaxY=Math.max(...lys);
+  const liveW=Math.max(1,liveMaxX-liveMinX);
+  const liveH=Math.max(1,liveMaxY-liveMinY);
+  const liveCx=(liveMinX+liveMaxX)/2;
+  const liveCy=(liveMinY+liveMaxY)/2;
+
+  const liveDist=Math.hypot(eR.x-eL.x,eR.y-eL.y);
+  const fW=imgW(fImg),fH=imgH(fImg);
+  const fD=Math.hypot(fEyeR.x-fEyeL.x,fEyeR.y-fEyeL.y);
+  if(fD<.001) return;
+
+  // Use face-box matching to avoid tiny/offset overlay when only eye alignment is used.
+  const fNorm=filterFaceNorm||{cx:0.5,cy:0.5,w:0.62,h:0.78};
+  const fitGain=Math.max(0.9,Math.min(1.45,parseInt(sFit.value)/100));
+  const scaleByBoxW=(liveW*fitGain)/(Math.max(0.05,fNorm.w)*fW);
+  const scaleByBoxH=(liveH*(fitGain+0.06))/(Math.max(0.05,fNorm.h)*fH);
+  const eyeScale=liveDist/(fD*fW);
+  const sc2=(scaleByBoxW*0.46)+(scaleByBoxH*0.46)+(eyeScale*0.08);
+
+  const dW=fW*sc2,dH=fH*sc2;
+  const mX=liveCx,mY=liveCy+parseInt(sY.value);
+  const fmX=fNorm.cx*dW,fmY=fNorm.cy*dH;
+  warpCtx.save();
+  warpCtx.translate(mX,mY);
+  warpCtx.rotate(angle);
+  warpCtx.drawImage(fImg,-fmX,-fmY,dW,dH);
+  warpCtx.restore();
+}
+
+// ── 9. Apply feathered oval mask + color blend ────────────────────────────────
+function applyMaskAndBlend(liveLMs,W,H){
+  const feather=parseInt(sF.value)+(qualityMode==='hq'?8:0);
+  const opacity=parseInt(sO.value)/100;
+  const colorMix=parseInt(sC.value)/100;
+
+  // Get oval points from EMA-smoothed positions
+  const oval=OVAL_IDX.map(i=>{
+    const raw=tC(liveLMs[i],W,H);
+    return ema(i,raw);
+  });
+  const cx=oval.reduce((s,p)=>s+p.x,0)/oval.length;
+  const cy=oval.reduce((s,p)=>s+p.y,0)/oval.length;
+  const maxR=oval.reduce((m,p)=>Math.max(m,Math.hypot(p.x-cx,p.y-cy)),0);
+
+  // ── Apply radial gradient mask to warpCanvas ──────────────────────────────
+  warpCtx.save();
+  warpCtx.globalCompositeOperation='destination-in';
+  const innerR=Math.max(0,maxR-feather);
+  const grad=warpCtx.createRadialGradient(cx,cy,innerR,cx,cy,maxR+feather*.2);
+  grad.addColorStop(0,'rgba(255,255,255,1)');
+  grad.addColorStop(1,'rgba(255,255,255,0)');
+  warpCtx.beginPath();
+  warpCtx.moveTo(oval[0].x,oval[0].y);
+  for(let i=1;i<oval.length;i++) warpCtx.lineTo(oval[i].x,oval[i].y);
+  warpCtx.closePath();
+  warpCtx.fillStyle=grad;
+  warpCtx.fill();
+  warpCtx.restore();
+
+  // ── Color correction: blend filter skin toward user skin at boundary ───────
+  // Apply a radial skin-color tint at the edges only (not the center)
+  if(colorMix>0.05){
+    warpCtx.save();
+    warpCtx.globalCompositeOperation='source-atop';
+    // Only apply tint in the outer ring (feather zone)
+    const tintGrad=warpCtx.createRadialGradient(cx,cy,Math.max(0,maxR-feather*1.5),cx,cy,maxR);
+    tintGrad.addColorStop(0,`rgba(${Math.round(skinR)},${Math.round(skinG)},${Math.round(skinB)},0)`);
+    tintGrad.addColorStop(1,`rgba(${Math.round(skinR)},${Math.round(skinG)},${Math.round(skinB)},${colorMix*0.6})`);
+    warpCtx.beginPath();
+    warpCtx.moveTo(oval[0].x,oval[0].y);
+    for(let i=1;i<oval.length;i++) warpCtx.lineTo(oval[i].x,oval[i].y);
+    warpCtx.closePath();
+    warpCtx.fillStyle=tintGrad;
+    warpCtx.fill();
+    warpCtx.restore();
+  }
+
+  // ── Composite onto main canvas ────────────────────────────────────────────
+  ctx.save();
+  ctx.globalAlpha=opacity;
+  ctx.drawImage(warpCanvas,0,0);
+  ctx.restore();
+}
+
+function applyTemporal(W,H){
+  const curA=qualityMode==='hq' ? 0.66 : 0.78;
+  const histA=1-curA;
+  blendCtx.clearRect(0,0,W,H);
+  blendCtx.globalAlpha=curA;
+  blendCtx.drawImage(warpCanvas,0,0,W,H);
+  blendCtx.globalAlpha=histA;
+  blendCtx.drawImage(historyCanvas,0,0,W,H);
+  blendCtx.globalAlpha=1;
+
+  warpCtx.clearRect(0,0,W,H);
+  warpCtx.drawImage(blendCanvas,0,0,W,H);
+
+  historyCtx.clearRect(0,0,W,H);
+  historyCtx.drawImage(blendCanvas,0,0,W,H);
+}
+
+function drawWatermark(W,H){
+  ctx.save();
+  ctx.font='bold 11px Segoe UI';
+  ctx.textAlign='right';
+  ctx.fillStyle='rgba(8,12,22,.55)';
+  const text='AI transformed';
+  const m=ctx.measureText(text);
+  const x=W-14,y=H-14;
+  ctx.fillRect(x-m.width-10,y-14,m.width+10,18);
+  ctx.fillStyle='rgba(225,232,240,.88)';
+  ctx.fillText(text,x,y);
+  ctx.restore();
+}
+
+// ── 10. Cut expression holes (mouth open, blink) ──────────────────────────────
+function cutExpressions(liveLMs,W,H){
+  // Get smoothed mouth/eye positions
+  const ul=ema(13,tC(liveLMs[13],W,H));
+  const ll=ema(14,tC(liveLMs[14],W,H));
+  const mL=ema(61,tC(liveLMs[61],W,H));
+  const mR=ema(291,tC(liveLMs[291],W,H));
+  const mOH=Math.abs(ll.y-ul.y);
+  const mW=Math.abs(mR.x-mL.x);
+
+  // Get head angle
+  const eL=ema(468,tC(liveLMs[468],W,H));
+  const eR=ema(473,tC(liveLMs[473],W,H));
+  const angle=Math.atan2((eL.x<eR.x?eR:eL).y-(eL.x<eR.x?eL:eR).y,
+                          Math.abs(eR.x-eL.x))*(eL.x<eR.x?1:-1);
+
+  // Mouth hole
+  if(mOH>6){
+    warpCtx.save();
+    warpCtx.globalCompositeOperation='destination-out';
+    warpCtx.beginPath();
+    warpCtx.ellipse((mL.x+mR.x)/2,(ul.y+ll.y)/2,mW*.45,mOH*.52,angle,0,Math.PI*2);
+    warpCtx.fillStyle='black'; warpCtx.fill();
+    warpCtx.restore();
+  }
+
+  // Eye holes when blinking
+  const eyePairs=[
+    [ema(159,tC(liveLMs[159],W,H)),ema(145,tC(liveLMs[145],W,H)),
+     ema(33, tC(liveLMs[33], W,H)),ema(133,tC(liveLMs[133],W,H))],
+    [ema(386,tC(liveLMs[386],W,H)),ema(374,tC(liveLMs[374],W,H)),
+     ema(362,tC(liveLMs[362],W,H)),ema(263,tC(liveLMs[263],W,H))]
+  ];
+  warpCtx.save();
+  warpCtx.globalCompositeOperation='destination-out';
+  for(const [et,eb,el,er] of eyePairs){
+    const oH=Math.abs(eb.y-et.y),eW=Math.abs(er.x-el.x);
+    if(eW<1) continue;
+    const EAR=oH/eW; if(EAR>=.24) continue;
+    const closed=Math.min(1,1-EAR/.24);
+    warpCtx.beginPath();
+    warpCtx.ellipse((el.x+er.x)/2,(et.y+eb.y)/2,eW*.50,Math.max(2,eW*.18*closed),0,0,Math.PI*2);
+    warpCtx.fillStyle='black'; warpCtx.fill();
+  }
+  warpCtx.restore();
+}
+
+// ── 11. Main render loop ──────────────────────────────────────────────────────
+function renderLoop(){
   requestAnimationFrame(renderLoop);
 
-  if (video.readyState !== 4) return;
+  // Draw mirrored live video
+  if(video.readyState>=2){
+    ctx.save();
+    ctx.translate(canvas.width,0);
+    ctx.scale(-1,1);
+    ctx.drawImage(video,0,0,canvas.width,canvas.height);
+    ctx.restore();
+  }
 
-  // ── Draw mirrored video frame onto canvas ─────────────────────────────
-  ctx.save();
-  ctx.translate(canvas.width, 0);
-  ctx.scale(-1, 1);
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  ctx.restore();
+  if(isAnalyzingFilter) return;
+  if(!videoLM||video.currentTime===lastT) return;
+  lastT=video.currentTime;
+  smoothFrameId++;
 
-  // ── Trigger face detection (non-blocking) ────────────────────────────
-  if (!filterReady || isDetecting) return;
+  let r=null;
+  try{
+    r=videoLM.detectForVideo(video,performance.now());
+  }catch(e){
+    detectErrors++;
+    if(detectErrors>5 && videoDelegate==='GPU'){
+      switchVideoDelegate('CPU');
+    }
+    return;
+  }
+  if(!r?.faceLandmarks?.length){
+    noFaceFrames++;
+    // GPU can fail silently on some drivers; auto-fallback to CPU tracking.
+    if(noFaceFrames>90 && videoDelegate==='GPU') switchVideoDelegate('CPU');
+    return;
+  }
+  noFaceFrames=0;
+  if(!fReady||!fImg) return;
+  if(!consentAccepted){
+    drawWatermark(canvas.width,canvas.height);
+    return;
+  }
 
-  isDetecting = true;
-  faceapi
-    .detectSingleFace(video, DETECT_OPTS)
-    .withFaceLandmarks()
-    .then(det => {
-      if (det) drawFilter(det);
-      isDetecting = false;
-    })
-    .catch(() => { isDetecting = false; });
+  const lms=r.faceLandmarks[0];
+  const W=canvas.width,H=canvas.height;
+
+  // Jitter guard: if detector suddenly jumps, reuse previous overlay frame.
+  const nose=tC(lms[1],W,H);
+  if(prevNose){
+    const jump=Math.hypot(nose.x-prevNose.x,nose.y-prevNose.y);
+    if(jump>48){
+      ctx.save();
+      ctx.globalAlpha=0.9;
+      ctx.drawImage(historyCanvas,0,0,W,H);
+      ctx.restore();
+      drawWatermark(W,H);
+      return;
+    }
+  }
+  prevNose=nose;
+
+  // Sample skin tone from user's face (every frame, EMA smoothed)
+  sampleSkin(lms,W,H);
+
+  // Draw warped filter
+  let warpDrawCount=0;
+  if(useWarp) warpDrawCount=drawWarpMode(lms,W,H);
+  else        drawFallbackMode(lms,W,H);
+
+  if(useWarp){
+    // Fallback only if mesh warping repeatedly fails to draw enough triangles.
+    warpWeakFrames = warpDrawCount<24 ? warpWeakFrames+1 : 0;
+    if(warpWeakFrames>120){
+      useWarp=false;
+      warpWeakFrames=0;
+      blankWarpFrames=0;
+      B('Auto eye-align fallback','y');
+      L('Mesh warp unstable on this device; switched to eye-align mode.');
+      modeBadge.textContent='👁 Eye-alignment mode (auto fallback)';
+      modeBadge.style.color='#fbbf24';
+    }
+  } else {
+    blankWarpFrames=0;
+    warpWeakFrames=0;
+  }
+
+  // Cut expression holes BEFORE masking
+  cutExpressions(lms,W,H);
+
+  // Temporal blending for smoother motion (stronger in HQ mode)
+  applyTemporal(W,H);
+
+  // Apply feathered mask + color blend + composite to canvas
+  applyMaskAndBlend(lms,W,H);
+  drawWatermark(W,H);
 }
 
-// ─── 5. Draw filter aligned to detected face ───────────────────────────────
-function drawFilter(det) {
-  const W  = canvas.width;
-  const lm = det.landmarks;
-
-  // Raw landmark coords (in video/image space, unmirrored)
-  const rawL = avg(lm.getLeftEye());
-  const rawR = avg(lm.getRightEye());
-
-  // Mirror to canvas space
-  const canvasL = { x: W - rawL.x, y: rawL.y };
-  const canvasR = { x: W - rawR.x, y: rawR.y };
-
-  // Sort by X so eyeA is always the visually-LEFT eye on screen
-  // This prevents upside-down rendering caused by swapped angle direction
-  const eyeA = canvasL.x < canvasR.x ? canvasL : canvasR;
-  const eyeB = canvasL.x < canvasR.x ? canvasR : canvasL;
-
-  // Head tilt angle (from left eye to right eye, left-to-right)
-  const angle = Math.atan2(eyeB.y - eyeA.y, eyeB.x - eyeA.x);
-
-  // Pixel distance between live eyes
-  const liveDist = Math.hypot(eyeB.x - eyeA.x, eyeB.y - eyeA.y);
-
-  // Normalised distance between eyes in the filter image
-  // Sort filter eyes the same way (by X)
-  const fA = filterEyeLeft.x < filterEyeRight.x ? filterEyeLeft : filterEyeRight;
-  const fB = filterEyeLeft.x < filterEyeRight.x ? filterEyeRight : filterEyeLeft;
-  const filtDist = Math.hypot(fB.x - fA.x, fB.y - fA.y);
-
-  // Scale the filter so its inter-eye distance matches the live face
-  const scale = liveDist / (filtDist * filterImg.naturalWidth);
-  const drawW = filterImg.naturalWidth  * scale;
-  const drawH = filterImg.naturalHeight * scale;
-
-  // Midpoint between live eyes (canvas space)
-  const midX = (eyeA.x + eyeB.x) / 2;
-  const midY = (eyeA.y + eyeB.y) / 2;
-
-  // Midpoint between filter eyes (scaled draw space)
-  const fMidX = ((fA.x + fB.x) / 2) * drawW;
-  const fMidY = ((fA.y + fB.y) / 2) * drawH;
-
-  // Draw: move origin to live eye midpoint → rotate → draw so filter eye mid = origin
-  ctx.save();
-  ctx.translate(midX, midY);
-  ctx.rotate(angle);
-  ctx.drawImage(filterImg, -fMidX, -fMidY, drawW, drawH);
-  ctx.restore();
-}
-
-// ─── Start ─────────────────────────────────────────────────────────────────
-init();
+boot();
 </script>
 </body>
 </html>
