@@ -826,7 +826,7 @@ function applyMaskAndBlend(liveLMs,W,H){
 }
 
 function applyTemporal(W,H){
-  const curA=qualityMode==='hq' ? 0.66 : 0.78;
+  const curA=qualityMode==='hq' ? 0.75 : 0.87;
   const histA=1-curA;
   blendCtx.clearRect(0,0,W,H);
   blendCtx.globalAlpha=curA;
@@ -904,22 +904,43 @@ function cutExpressions(liveLMs,W,H){
 }
 
 // ── 11. Main render loop ──────────────────────────────────────────────────────
+let frameQueueId=0;
 function renderLoop(){
   requestAnimationFrame(renderLoop);
+
+  // Skip duplicate frames more aggressively to prevent flickering
+  if(isAnalyzingFilter) return;
+  if(!videoLM) return;
+  
+  // Check for new frame
+  if(video.currentTime===lastT){
+    // Same frame as last time - still draw to avoid black flicker
+    // but don't process detection
+    if(video.readyState>=2 && !fReady){
+      ctx.save();
+      ctx.translate(canvas.width,0);
+      ctx.scale(-1,1);
+      ctx.drawImage(video,0,0,canvas.width,canvas.height);
+      ctx.restore();
+    }
+    return;
+  }
+  
+  lastT=video.currentTime;
+  smoothFrameId++;
+
+  // Explicitly clear canvas for clean frame
+  const W=canvas.width, H=canvas.height;
+  ctx.clearRect(0,0,W,H);
 
   // Draw mirrored live video
   if(video.readyState>=2){
     ctx.save();
-    ctx.translate(canvas.width,0);
+    ctx.translate(W,0);
     ctx.scale(-1,1);
-    ctx.drawImage(video,0,0,canvas.width,canvas.height);
+    ctx.drawImage(video,0,0,W,H);
     ctx.restore();
   }
-
-  if(isAnalyzingFilter) return;
-  if(!videoLM||video.currentTime===lastT) return;
-  lastT=video.currentTime;
-  smoothFrameId++;
 
   let r=null;
   try{
@@ -935,25 +956,25 @@ function renderLoop(){
     noFaceFrames++;
     // GPU can fail silently on some drivers; auto-fallback to CPU tracking.
     if(noFaceFrames>90 && videoDelegate==='GPU') switchVideoDelegate('CPU');
+    // Still show video frame even without face
     return;
   }
   noFaceFrames=0;
   if(!fReady||!fImg) return;
   if(!consentAccepted){
-    drawWatermark(canvas.width,canvas.height);
+    drawWatermark(W,H);
     return;
   }
 
   const lms=r.faceLandmarks[0];
-  const W=canvas.width,H=canvas.height;
 
   // Jitter guard: if detector suddenly jumps, reuse previous overlay frame.
   const nose=tC(lms[1],W,H);
   if(prevNose){
     const jump=Math.hypot(nose.x-prevNose.x,nose.y-prevNose.y);
-    if(jump>48){
+    if(jump>72){  // Increased threshold from 48 to 72 to reduce false positives
       ctx.save();
-      ctx.globalAlpha=0.9;
+      ctx.globalAlpha=0.95;
       ctx.drawImage(historyCanvas,0,0,W,H);
       ctx.restore();
       drawWatermark(W,H);
